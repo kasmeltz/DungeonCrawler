@@ -10,11 +10,15 @@ module (...)
 
 local sounds = {}
 
-function Load(name, path, st)
-	if sounds[name] then 
-		return sounds[name]
+--
+--  Returns the sound specified by the path
+--	loading it as a new resource if it doesn't already exist
+--
+function load(path, st)
+	if sounds[path] then 
+		return sounds[path]
 	end
 	
-	sounds[name] = love.audio.newSource( path, st )
-	return sounds[name] 
+	sounds[path] = love.audio.newSource( path, st )
+	return sounds[path] 
 end
