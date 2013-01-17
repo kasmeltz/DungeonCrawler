@@ -5,127 +5,217 @@ local sceneManager = require 'gameSceneManager'
 local gameScene = require 'gameScene'
 local spriteSheet = require 'spriteSheet'
 local spriteSheetManager = require 'spriteSheetManager'
-local sprite = require 'sprite'
-local map = require 'map'
 local camera = require 'camera'
 
-local cx = 300
+require 'map'
+require 'actor'
+require 'loadSpriteSheets'
+
 local hero
 
-require 'loadSpriteSheets'
+local orcsSlain = 0
+local font = love.graphics.newFont(32)
 
 function love.load()
 	math.randomseed( os.time() )
 		
 	local dungeonScene = gameScene:new()
-	dungeonScene._orderedDraw = true
+	dungeonScene:createCollisionBuckets(100,200)
+	dungeonScene._orderedDraw = true	
+	--dungeonScene._showCollisionBoxes = true
 	
 	local c = camera:new()
 	gameScene:camera(c)
 
-	local m = map:new(spriteSheetManager.sheet('tiles_dungeon_0'))
+	local m = objects.Map{ _spriteSheet = spriteSheetManager.sheet('tiles_dungeon_0') }	
 	m._drawOrder = -1000
 	dungeonScene:addComponent(m)
 	m:createObjects(dungeonScene)
 	
-	hero = {}
-	hero.x = 100
-	hero.y = 100
-	hero.speed = 100
+	hero = objects.Actor{ _spriteSheet = spriteSheetManager.sheet('male_body_light') }
+	hero._position[1] = 400
+	hero._position[2] = 400
+	hero:direction('left')
+	hero:animation('walk')
 	
-	hero._sprites = {}
-	
-	hero._sprites[1] = sprite:new(spriteSheetManager.sheet('male_body_light'), nil)
-	hero._sprites[2] = sprite:new(spriteSheetManager.sheet('male_torso_shirt_brown'), hero._sprites[1])
-	hero._sprites[3] = sprite:new(spriteSheetManager.sheet('male_legs_metalpants_copper'), hero._sprites[1])
+	function hero:on_begin_attack()			
+		local dagger = objects.Actor{ _spriteSheet = spriteSheetManager.sheet('weapons_flying_dagger') }		
+		hero:ignoreCollision(dagger)
+		dagger:ignoreCollision(hero)
 
-	function hero:play(n)
-		for _, v in ipairs(self._sprites) do
-			v:play(n)
+		local speed = 250
+		local currentTime = 0
+		local timeToLive = 1
+		local dir = hero:direction()
+		local hv = hero:velocity()
+		local vx, vy = 0, 0
+		
+		if (hv[1] > 0 or dir == 'right' ) then
+			dagger:position(hero._position[1] + 20, hero._position[2] - 30)			
+			vx = speed
 		end
-	end
-	
-	hero:play('walkleft')
-	
-	function hero:update(dt)	
-		for _, v in ipairs(self._sprites) do
-			v:update(dt)
+		if (hv[1] < 0 or dir == 'left' ) then
+			dagger:position(hero._position[1] - 20, hero._position[2] - 30)			
+			vx = -speed
+		end		
+		if (hv[2] < 0 or dir == 'up' ) then
+			dagger:position(hero._position[1], hero._position[2] - 30)			
+			vy = -speed
+		end
+		if (hv[2] > 0 or dir == 'down' ) then
+			dagger:position(hero._position[1], hero._position[2] - 20 )			
+			vy = speed
+		end				
+		
+		dagger._velocity[1] = vx
+		dagger._velocity[2] = vy
+		
+		dagger:animation('attack')
+		dagger:update(0)		
+				
+		function dagger:update(dt)
+			currentTime = currentTime + dt
+			if currentTime >= timeToLive then
+				dungeonScene:removeComponent(dagger)
+				return
+			end			
+			dagger._rotation = dagger._rotation + 20 * dt
+			objects.Actor.update(dagger, dt)
 		end
 		
-		local speedMulti = self.speed * dt
-		if love.keyboard.isDown('left') then
-			self.x = self.x - speedMulti
-			self:play('walkleft')
-		end
-		if love.keyboard.isDown('right') then
-			self.x = self.x + speedMulti
-			self:play('walkright')
-		end
-		if love.keyboard.isDown('up') then
-			self.y = self.y - speedMulti
-			self:play('walkup')
-		end
-		if love.keyboard.isDown('down') then
-			self.y = self.y + speedMulti
-			self:play('walkdown')
-		end
-		
-		self._drawOrder = self.y + self._sprites[1]._offsets[2]- self.x * 1e-14
-	end
-
-	function hero:draw(camera)
-		love.graphics.setColor(255,255,255,255)
-		
-		local sx = math.floor((self.x * camera._zoomX) - camera._cwzx)
-		local sy = math.floor((self.y * camera._zoomY) - camera._cwzy)
-		
-		for _, v in ipairs(self._sprites) do
-			v:draw(sx, sy)		
-		end
-	end
-	
-	dungeonScene:addComponent(hero)	
-	
-	local function createOrc()		
-		local e = {}
-		e.x = 900
-		e.y = 300
-		e.speed = 100
-		e.entities = {}
-		e.sprite = sprite:new(spriteSheetManager.sheet('male_body_orc'))
-		e.sprite:play('walkleft')
-		
-		function e:update(dt)
-			self.x = self.x - dt * 25
-			self.sprite:update(dt)		
-			for _, en in pairs(self.entities) do
-				en:update(dt)
+		function dagger:on_collide(other)
+			if other.ACTOR then
+				orcsSlain = orcsSlain + 1
+				dungeonScene:removeComponent(other)
 			end
-			self._drawOrder = self.y + self.sprite._offsets[2]- self.x * 1e-14
+			dungeonScene:removeComponent(dagger)
 		end
-
-		function e:draw(camera)
-			love.graphics.setColor(255,255,255,255)
-			
-			local sx = math.floor((self.x * camera._zoomX) - camera._cwzx)
-			local sy = math.floor((self.y * camera._zoomY) - camera._cwzy)
 		
-			self.sprite:draw(sx, sy)
-		end	
-		return e
+		dungeonScene:addComponent(dagger)
 	end
 	
-	for i = 1, 4 do
-		local o = createOrc()
-		o.y = math.random(0,600)		
-		dungeonScene:addComponent(o)
-	end
+	dungeonScene:addComponent(hero)		
+	dungeonScene:addComponent{
+		update = function(self, dt)
+			local speed = 200
+			
+			if not hero._currentAction then
+				local vx, vy = 0, 0				
+				if love.keyboard.isDown('left') then
+					vx = -speed
+					hero:direction('left')
+					hero:animation('walk')
+				end
+				if love.keyboard.isDown('right') then
+					vx = speed
+					hero:direction('right')
+					hero:animation('walk')
+				end
+				if love.keyboard.isDown('up') then
+					vy = -speed
+					hero:direction('up')
+					hero:animation('walk')
+				end
+				if love.keyboard.isDown('down') then
+					vy = speed
+					hero:direction('down')
+					hero:animation('walk')
+				end
+				hero:velocity(vx, vy)				
+				if vx == 0 and vy == 0 then
+					hero:animation('stand')
+				end
+				
+				if love.keyboard.isDown('lctrl') then
+					hero:action('attack')
+					hero:velocity(0,0)					
+				end			
+
+				if love.keyboard.isDown('a') then					
+					local x = c._zoomX
+					local y = c._zoomY
+					c:zoom(x + 0.01, y + 0.01)
+				end
+				
+				if love.keyboard.isDown('z') then					
+					local x = c._zoomX
+					local y = c._zoomY
+					c:zoom(x - 0.01, y - 0.01)
+				end				
+			end
+		end
+	}
+	
+	-- orc spawner
+	local spawner = objects.Drawable{ _spriteSheet = spriteSheetManager.sheet('male_body_light'), 
+		_spawnTime = 1, _currentTime = 0 }
+	spawner._position[1] = 500
+	spawner._position[2] = 500	
+	spawner:direction('down')
+	spawner:animation('stand')
+	spawner:update(0)
+	
+	function spawner:update(dt)		
+		local function changeDirection(orc)
+			local dir = 'up'
+			local vx = math.random(-200,200)
+			local vy = math.random(-200,200)
+
+			if math.abs(vx) > math.abs(vy) then
+				if vx < 0 then						
+					dir = 'left'
+				else
+					dir = 'right'
+				end			
+			else
+				if vy < 0 then						
+					dir = 'up'
+				else
+					dir = 'down'
+				end						
+			end
+
+			orc:direction(dir)
+			orc:animation('walk')			
+			orc._velocity[1] = vx
+			orc._velocity[2] = vy
+		end
 		
+		self._currentTime = self._currentTime + dt
+		if self._currentTime >= self._spawnTime then	
+			self._currentTime = 0
+			local orc = objects.Actor{ _spriteSheet = spriteSheetManager.sheet('male_body_orc') }
+			changeDirection(orc)
+			orc._position[1] = spawner._position[1]
+			orc._position[2] = spawner._position[2]			
+			orc:update(0)
+			
+			function orc:on_collide(other)
+				changeDirection(orc)
+			end
+
+			dungeonScene:addComponent(orc)
+		end
+		
+		objects.Drawable.update(self, dt)
+	end	
+	dungeonScene:addComponent(spawner)
+		
+	dungeonScene:addComponent{
+		_drawOrder = 10000,
+		draw = function()	
+			love.graphics.setColor{0,255,0,255}
+			love.graphics.setFont(font)
+			love.graphics.print('Demons defeated', 500, 0)
+			love.graphics.print(orcsSlain, 700, 40)
+		end}
+	
 	sceneManager.addScene('dungeon', dungeonScene)
 	sceneManager.switch('dungeon')
 end
 			
 function love.draw()
+	love.graphics.setColor{255,255,255,255}
 	love.graphics.setBackgroundColor(100,100,100,255)
 	love.graphics.clear()		
 
@@ -134,7 +224,7 @@ end
 
 function love.update(dt)
 	local scene = sceneManager.getScene('dungeon')
-	local c = scene:camera()	
-	c:center(hero.x, hero.y)
 	sceneManager.update(dt)
+	local c = scene:camera()	
+	c:center(hero._position[1], hero._position[2])	
 end

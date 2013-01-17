@@ -12,11 +12,12 @@ module (...)
 --
 --  Creates a new sprite sheet
 --
-function _M:new(i, f, a)	
+function _M:new(i, f, a, t)	
 	local o = { 
 		_image = i,
 		_frames = {} or f,
-		_animations = {} or a
+		_animations = {} or a,
+		_tiles = {} or t
 	}	
 	
 	self.__index = self
@@ -49,6 +50,7 @@ end
 --		h - the height of a frame
 --
 function _M:uniformFrames(w, h)
+	self._tileSize = { w, h }
 	self._frames = {}
 	self._quads = nil
 	
@@ -111,11 +113,12 @@ end
 --		n - the name of the animation
 --		a - a table in the format
 --		{
---			frames = { 1, 2, 3, 4 },
---			delay = { 10, 10, 10, 10 },
---			offset = { { 32, 32 }, { 32, 32 }, { 32, 32 }, { 32, 32 } },
---			animationType = { 'loop' || 'pingpong' },
---			animationCount = 1,
+--			_frames = { 1, 2, 3, 4 },
+--			_boundaries = { { 0, 0, 32, 32 }, { 0, 0, 32, 32 }, { 0, 0, 32 ,32 } },
+--			_delays = { 10, 10, 10, 10 },
+--			_offsets = { { 32, 32 }, { 32, 32 }, { 32, 32 }, { 32, 32 } },
+--			_loopType = { 'loop' || 'pingpong' },
+--			_loopCount = 1,
 --		}
 --
 function _M:addAnimation(n, a)
@@ -127,4 +130,23 @@ end
 --
 function _M:removeAnimation(n)
 	self._animations[n] = nil
+end
+
+--
+--  Sets or gets the tiles table
+--
+--	Input:
+--
+--		t - a table in the following format, with either a table entry or nil per frame in the spritesheet
+--		{
+--			{ offset = { 16, 32 }, height = { 64 }, boundary = { 0, 0, 32, 32 } },
+--			nil, nil, nil
+--			.
+--			.
+--			.
+--		}
+--			
+function _M:tiles(t)
+	if not t then return self._tiles end
+	self._tiles = t
 end
