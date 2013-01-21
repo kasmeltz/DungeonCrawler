@@ -16,6 +16,8 @@ Animation = Object{}
 function Animation:_clone(values)
 	local o = Object._clone(self,values)
 	
+	o._delayModifier = 0
+	
 	o:reset()
 	
 	return o
@@ -32,8 +34,9 @@ function Animation:update(dt)
 	local d = self._definition
 
 	self._currentDelay = self._currentDelay + dt			
-	if self._currentDelay >= d._delays[self._currentFrame] then
-		self._currentDelay = self._currentDelay - d._delays[self._currentFrame]
+	local actualDelay = d._delays[self._currentFrame] + self._delayModifier
+	if self._currentDelay >= actualDelay then
+		self._currentDelay = self._currentDelay - actualDelay
 		self._currentFrame = self._currentFrame + self._frameDirection
 						
 		if self._currentFrame < 1 or self._currentFrame > #d._frames then
